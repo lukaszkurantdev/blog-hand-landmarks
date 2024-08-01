@@ -1,118 +1,115 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import {PaintStyle, Skia} from '@shopify/react-native-skia';
+import React, {useEffect} from 'react';
 
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import {StyleSheet, Text} from 'react-native';
 import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
+  Camera,
+  useCameraDevice,
+  useCameraPermission,
+  VisionCameraProxy,
+  Frame,
+  useSkiaFrameProcessor,
+} from 'react-native-vision-camera';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+const plugin = VisionCameraProxy.initFrameProcessorPlugin('handLandmarks', {});
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
-
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
+export function handLandmarks(frame: Frame) {
+  'worklet';
+  if (plugin == null) {
+    throw new Error('Failed to load Frame Processor Plugin!');
+  }
+  return plugin.call(frame);
 }
+
+const lines = [
+  [0, 1],
+  [1, 2],
+  [2, 3],
+  [3, 4],
+  [0, 5],
+  [5, 6],
+  [6, 7],
+  [7, 8],
+  [5, 9],
+  [9, 10],
+  [10, 11],
+  [11, 12],
+  [9, 13],
+  [13, 14],
+  [14, 15],
+  [15, 16],
+  [13, 17],
+  [17, 18],
+  [18, 19],
+  [19, 20],
+  [0, 17],
+];
 
 function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+  const device = useCameraDevice('front');
+  const {hasPermission, requestPermission} = useCameraPermission();
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
+  useEffect(() => {
+    requestPermission();
+  }, [requestPermission]);
 
+  const paint = Skia.Paint();
+  paint.setStyle(PaintStyle.Fill);
+  paint.setStrokeWidth(2);
+  paint.setColor(Skia.Color('red'));
+
+  const linePaint = Skia.Paint();
+  linePaint.setStyle(PaintStyle.Fill);
+  linePaint.setStrokeWidth(4);
+  linePaint.setColor(Skia.Color('lime'));
+
+  const frameProcessor = useSkiaFrameProcessor(frame => {
+    'worklet';
+    const data = handLandmarks(frame);
+    frame.render();
+
+    const frameWidth = frame.width;
+    const frameHeight = frame.height;
+
+    for (const hand of data || []) {
+      // Draw lines
+      for (const [from, to] of lines) {
+        frame.drawLine(
+          hand[from].x * Number(frameWidth),
+          hand[from].y * Number(frameHeight),
+          hand[to].x * Number(frameWidth),
+          hand[to].y * Number(frameHeight),
+          linePaint,
+        );
+      }
+
+      // Draw circles
+      for (const mark of hand) {
+        frame.drawCircle(
+          mark.x * Number(frameWidth),
+          mark.y * Number(frameHeight),
+          6,
+          paint,
+        );
+      }
+    }
+  }, []);
+
+  if (!hasPermission) {
+    return <Text>No permission</Text>;
+  }
+  if (device == null) {
+    return <Text>No device</Text>;
+  }
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+    <Camera
+      style={StyleSheet.absoluteFill}
+      device={device}
+      isActive={true}
+      frameProcessor={frameProcessor}
+      fps={30}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
-  },
-});
 
 export default App;
