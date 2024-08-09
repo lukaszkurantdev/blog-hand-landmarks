@@ -108,6 +108,7 @@ function App(): React.JSX.Element {
       isActive={true}
       frameProcessor={frameProcessor}
       fps={30}
+      pixelFormat="rgb"
     />
   );
 }
